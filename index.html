@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conferência de Semeadura - Ordem por Coluna</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #eef1f4;
+            min-height: 100vh;
+            padding: 1rem;
+            color: #24313d;
+        }
+
+        .header {
+            background: #263746;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.09);
+        }
+
+        .conference-panel {
+            position: sticky;
+            top: 1rem;
+            z-index: 50;
+        }
+
+        @media (max-width: 1024px) {
+            .conference-panel {
+                position: static;
+            }
+        }
+
+        h2 {
+            color: #263746;
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e8edf1;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .upload-area {
+            border: 3px dashed #b4c0c9;
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+            margin-bottom: 1rem;
+        }
+
+        .upload-area:hover {
+            border-color: #2f80c7;
+            background: #edf6fc;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .map-controls,
+        .start-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .start-controls {
+            background: #f7f9fb;
+            border: 1px solid #e3e9ee;
+            border-radius: 8px;
+            padding: 0.75rem;
+        }
+
+        .start-controls label {
+            font-weight: 700;
+            color: #34495e;
+            font-size: 0.9rem;
+        }
+
+        .start-input {
+            flex: 1 1 210px;
+            min-width: 0;
+            border: 2px solid #d7dee5;
+            border-radius: 6px;
+            padding: 0.7rem;
+            font-size: 0.95rem;
+        }
+
+        .start-input:focus {
+            outline: none;
+            border-color: #2f80c7;
+        }
+
+        .map-container {
+            overflow: auto;
+            max-height: calc(100vh - 250px);
+            min-height: 260px;
+            border: 1px solid #e3e9ee;
+            border-radius: 8px;
+            transition: all 0.3s;
+            background: #fff;
+        }
+
+        .map-container.column-mode {
+            max-height: calc(100vh - 230px);
+        }
+
+        table {
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid #d9dee3;
+            padding: 0.45rem;
+            text-align: center;
+            min-width: 65px;
+            transition: background 0.2s, color 0.2s, transform 0.2s;
+        }
+
+        th {
+            background: #34495e;
+            color: white;
+            font-weight: 700;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td[data-sequence-index] {
+            cursor: pointer;
+        }
+
+        td[data-sequence-index]:hover {
+            outline: 2px solid #2f80c7;
+            outline-offset: -2px;
+        }
+
+        .row-label {
+            background: #34495e;
+            color: white;
+            font-weight: 700;
+            position: sticky;
+            left: 0;
+            z-index: 4;
+        }
+
+        .column-title {
+            background: #eaf3fb;
+            border: 1px solid #c9dfef;
+            border-radius: 8px;
+            padding: 0.8rem 1rem;
+            margin-bottom: 0.8rem;
+            color: #274f73;
+            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        td.current {
+            background: #2f80c7 !important;
+            color: white;
+            font-weight: bold;
+            animation: pulse 0.8s infinite;
+            box-shadow: inset 0 0 15px rgba(255,255,255,0.45);
+            transform: scale(1.05);
+            z-index: 5;
+            position: relative;
+        }
+
+        td.checked {
+            background: #229954;
+            color: white;
+            opacity: 0.88;
+        }
+
+        td.pending-before {
+            background: #f5efe3;
+            color: #745318;
+        }
+
+        td.filler {
+            background: #eef1f4;
+            color: #7d8994;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+
+        td.error-flash {
+            background: #d6453d !important;
+            color: white;
+            animation: shake 0.5s;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.06); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .conference-status {
+            background: #263746;
+            color: white;
+            padding: 1.4rem;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 1rem;
+            transition: background 0.3s;
+        }
+
+        .conference-status.error {
+            background: #d6453d;
+            animation: errorPulse 0.5s infinite;
+        }
+
+        .conference-status.success {
+            background: #229954;
+        }
+
+        @keyframes errorPulse {
+            0%, 100% { background: #d6453d; }
+            50% { background: #b7352e; }
+        }
+
+        .package-number {
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: bold;
+            margin: 0.5rem 0;
+            overflow-wrap: anywhere;
+        }
+
+        .location-text {
+            font-size: 1.1rem;
+            opacity: 0.92;
+        }
+
+        .direction-arrow {
+            font-size: 1.2rem;
+            margin: 0.5rem 0;
+            min-height: 1.6rem;
+        }
+
+        .progress-container {
+            margin: 1rem 0 0;
+        }
+
+        .progress-bar {
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            height: 12px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: #35c36f;
+            height: 100%;
+            border-radius: 8px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .progress-text {
+            font-size: 0.9rem;
+            margin-top: 0.3rem;
+            opacity: 0.9;
+        }
+
+        .barcode-input {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.25rem;
+            border: 3px solid #d9dee3;
+            border-radius: 8px;
+            text-align: center;
+            margin: 1rem 0;
+            transition: all 0.3s;
+        }
+
+        .barcode-input:focus {
+            outline: none;
+            border-color: #2f80c7;
+        }
+
+        .barcode-input.error {
+            border-color: #d6453d;
+            background: #fdf0ef;
+            animation: shake 0.5s;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.8rem;
+            margin: 1rem 0;
+        }
+
+        .stat-box {
+            background: #f7f9fb;
+            padding: 0.8rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e3e9ee;
+        }
+
+        .stat-value {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #263746;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: #71808d;
+            margin-top: 0.2rem;
+        }
+
+        .btn {
+            padding: 0.8rem 1.3rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-primary { background: #2f80c7; color: white; }
+        .btn-primary:hover { background: #246aa8; }
+        .btn-success { background: #229954; color: white; }
+        .btn-success:hover { background: #1d7f47; }
+        .btn-warning { background: #d99021; color: white; }
+        .btn-warning:hover { background: #bd7617; }
+        .btn-danger { background: #d6453d; color: white; }
+        .btn-danger:hover { background: #b7352e; }
+        .btn-info { background: #158577; color: white; }
+        .btn-info:hover { background: #116f64; }
+        .btn-light { background: #e8edf1; color: #263746; }
+        .btn-light:hover { background: #d9e1e8; }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn.active-btn {
+            box-shadow: 0 0 0 3px rgba(47, 128, 199, 0.22);
+            transform: translateY(-1px);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .log-panel {
+            background: #263746;
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 220px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            color: #ecf0f1;
+        }
+
+        .log-entry {
+            padding: 0.2rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .log-error { color: #ff7b73; font-weight: bold; }
+        .log-success { color: #42dd7a; }
+        .log-info { color: #78c5ff; }
+
+        .error-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(214, 69, 61, 0.95);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.2s;
+            padding: 1rem;
+        }
+
+        .error-modal.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .error-modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 3rem;
+            text-align: center;
+            max-width: 520px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+            animation: modalBounce 0.5s;
+        }
+
+        @keyframes modalBounce {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .error-icon {
+            font-size: 5rem;
+            margin-bottom: 1rem;
+            animation: errorShake 0.5s infinite;
+        }
+
+        @keyframes errorShake {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-10deg); }
+            75% { transform: rotate(10deg); }
+        }
+
+        .error-title {
+            font-size: 2rem;
+            color: #d6453d;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .error-details {
+            font-size: 1.1rem;
+            color: #263746;
+            margin-bottom: 0.5rem;
+        }
+
+        .error-expected,
+        .error-scanned {
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-size: 1.1rem;
+        }
+
+        .error-expected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .error-scanned {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .flash-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(214, 69, 61, 0.45);
+            pointer-events: none;
+            z-index: 999;
+            animation: flashError 0.3s;
+        }
+
+        @keyframes flashError {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        .hidden { display: none; }
+
+        .info-banner {
+            background: #eaf3fb;
+            border-left: 4px solid #2f80c7;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .muted-note {
+            color: #71808d;
+            font-size: 0.82rem;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div id="flashOverlay" class="flash-overlay hidden"></div>
+
+    <div id="errorModal" class="error-modal">
+        <div class="error-modal-content">
+            <div class="error-icon">⚠️</div>
+            <div class="error-title">ERRO DE CONFERÊNCIA!</div>
+            <div class="error-details" id="errorLocation"></div>
+            <div class="error-expected">
+                <strong>✅ CÓDIGO ESPERADO:</strong><br>
+                <span id="errorExpected" style="font-size: 1.5rem;"></span>
+            </div>
+            <div class="error-scanned">
+                <strong>❌ CÓDIGO LIDO:</strong><br>
+                <span id="errorScanned" style="font-size: 1.5rem;"></span>
+            </div>
+            <button class="btn btn-danger" id="btnCloseError" style="margin-top: 1rem; font-size: 1.1rem; padding: 1rem 2rem;">
+                CORRIGIR E TENTAR NOVAMENTE
+            </button>
+        </div>
+    </div>
+
+    <div class="header">
+        <h1>🌾 Conferência de Semeadura</h1>
+        <div style="font-size: 0.9rem; opacity: 0.9;">
+            Ordem por Coluna (sentido de plantio)
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <h2>🗺️ Mapa de Campo</h2>
+
+            <div class="info-banner">
+                <strong>📋 Instruções:</strong><br>
+                1. Faça upload do Excel com o mapa<br>
+                2. O sistema lê por <strong>coluna de baixo para cima</strong><br>
+                3. A tela padrão mostra apenas a <strong>coluna atual</strong>; use "Grid inteiro" somente quando precisar<br>
+                4. Clique em qualquer parcela para começar ou retomar a partir dela
+            </div>
+
+            <div id="uploadArea" class="upload-area">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">📁</div>
+                <strong>Clique para upload do Excel</strong><br>
+                <small>ou arraste o arquivo (.xlsx, .xls)</small>
+                <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+            </div>
+
+            <div id="mapSection" class="hidden">
+                <div class="map-controls">
+                    <button id="btnCurrentColumn" class="btn btn-info active-btn">🔎 Coluna atual</button>
+                    <button id="btnFullGrid" class="btn btn-light">🗺️ Grid inteiro</button>
+                    <button id="btnResetMap" class="btn btn-danger">📁 Novo mapa</button>
+                </div>
+
+                <div class="start-controls">
+                    <label for="startParcelInput">Começar em</label>
+                    <input type="text" id="startParcelInput" class="start-input" placeholder="Digite ou escaneie o código da parcela">
+                    <button id="btnGoToParcel" class="btn btn-primary">Ir para parcela</button>
+                </div>
+
+                <div class="muted-note" style="margin-bottom: 0.75rem;">
+                    Progresso salvo automaticamente neste navegador. Para continuar depois, abra esta mesma página e clique em Iniciar.
+                </div>
+
+                <div class="map-container column-mode" id="mapContainer"></div>
+            </div>
+        </div>
+
+        <div class="panel conference-panel">
+            <h2>📱 Conferência</h2>
+
+            <div id="conferenceStatus" class="conference-status">
+                <div style="font-size: 0.9rem; opacity: 0.9;" id="statusLabel">AGUARDANDO MAPA</div>
+                <div class="package-number" id="currentPackage">----</div>
+                <div class="location-text" id="currentLocation"></div>
+                <div class="direction-arrow" id="directionArrow"></div>
+
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">0 / 0</div>
+                </div>
+            </div>
+
+            <input type="text"
+                   id="barcodeInput"
+                   class="barcode-input"
+                   placeholder="Escaneie o código de barras..."
+                   disabled
+                   autocomplete="off">
+
+            <div class="button-group">
+                <button id="btnStart" class="btn btn-primary" disabled>▶ Iniciar</button>
+                <button id="btnPause" class="btn btn-light" disabled>⏸ Pausar</button>
+                <button id="btnSkip" class="btn btn-warning" disabled>⏭️ Pular</button>
+                <button id="btnReset" class="btn btn-danger">🔄 Resetar Conferência</button>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-value" id="totalPackages">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="checkedPackages">0</div>
+                    <div class="stat-label">Conferidos</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="errorCount">0</div>
+                    <div class="stat-label">Erros</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="remainingPackages">0</div>
+                    <div class="stat-label">Restantes</div>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 1rem; margin-bottom: 0.5rem; color: #263746;">📝 Log</h3>
+            <div class="log-panel" id="logPanel">
+                <div style="opacity: 0.5; text-align: center;">Sistema pronto para iniciar...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class FieldConference {
+            constructor() {
+                this.storageKey = 'fieldConference.v2';
+                this.mapData = null;
+                this.sequence = [];
+                this.sequenceByCell = new Map();
+                this.sequenceByBarcode = new Map();
+                this.currentIndex = 0;
+                this.isActive = false;
+                this.errorCount = 0;
+                this.checkedCells = new Set();
+                this.totalRows = 0;
+                this.totalCols = 0;
+                this.viewMode = 'column';
+
+                this.init();
+            }
+
+            init() {
+                this.uploadArea = document.getElementById('uploadArea');
+                this.fileInput = document.getElementById('fileInput');
+                this.barcodeInput = document.getElementById('barcodeInput');
+                this.currentPackage = document.getElementById('currentPackage');
+                this.currentLocation = document.getElementById('currentLocation');
+                this.directionArrow = document.getElementById('directionArrow');
+                this.conferenceStatus = document.getElementById('conferenceStatus');
+                this.statusLabel = document.getElementById('statusLabel');
+                this.progressFill = document.getElementById('progressFill');
+                this.progressText = document.getElementById('progressText');
+                this.mapContainer = document.getElementById('mapContainer');
+                this.mapSection = document.getElementById('mapSection');
+                this.logPanel = document.getElementById('logPanel');
+                this.flashOverlay = document.getElementById('flashOverlay');
+                this.errorModal = document.getElementById('errorModal');
+                this.startParcelInput = document.getElementById('startParcelInput');
+
+                this.uploadArea.addEventListener('click', () => this.fileInput.click());
+                this.fileInput.addEventListener('change', (e) => this.handleFile(e));
+
+                this.uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    this.uploadArea.style.borderColor = '#229954';
+                    this.uploadArea.style.background = '#eafaf1';
+                });
+
+                this.uploadArea.addEventListener('dragleave', () => {
+                    this.uploadArea.style.borderColor = '#b4c0c9';
+                    this.uploadArea.style.background = '#fafafa';
+                });
+
+                this.uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.uploadArea.style.borderColor = '#b4c0c9';
+                    this.uploadArea.style.background = '#fafafa';
+                    if (e.dataTransfer.files[0]) {
+                        this.processFile(e.dataTransfer.files[0]);
+                    }
+                });
+
+                this.barcodeInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.processBarcode(this.barcodeInput.value.trim());
+                        this.barcodeInput.value = '';
+                    }
+                });
+
+                this.startParcelInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.goToParcel(this.startParcelInput.value.trim());
+                    }
+                });
+
+                this.mapContainer.addEventListener('click', (e) => {
+                    const cell = e.target.closest('[data-sequence-index]');
+                    if (!cell) return;
+                    this.selectSequenceIndex(Number(cell.dataset.sequenceIndex), true);
+                });
+
+                document.getElementById('btnStart').addEventListener('click', () => this.start());
+                document.getElementById('btnPause').addEventListener('click', () => this.pause());
+                document.getElementById('btnSkip').addEventListener('click', () => this.skip());
+                document.getElementById('btnReset').addEventListener('click', () => this.reset());
+                document.getElementById('btnCurrentColumn').addEventListener('click', () => this.setViewMode('column'));
+                document.getElementById('btnFullGrid').addEventListener('click', () => this.setViewMode('full'));
+                document.getElementById('btnResetMap').addEventListener('click', () => this.resetMap());
+                document.getElementById('btnGoToParcel').addEventListener('click', () => this.goToParcel(this.startParcelInput.value.trim()));
+                document.getElementById('btnCloseError').addEventListener('click', () => {
+                    this.errorModal.classList.remove('active');
+                    if (this.isActive) this.barcodeInput.focus();
+                });
+
+                document.addEventListener('click', (e) => {
+                    const interactive = e.target.closest('button, input, .upload-area, [data-sequence-index]');
+                    if (this.isActive && !interactive) this.barcodeInput.focus();
+                });
+
+                this.restoreState();
+            }
+
+            handleFile(event) {
+                if (event.target.files[0]) {
+                    this.processFile(event.target.files[0]);
+                }
+            }
+
+            processFile(file) {
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+                        this.mapData = XLSX.utils.sheet_to_json(sheet, {
+                            header: 1,
+                            defval: ''
+                        });
+
+                        if (!this.mapData || this.mapData.length <= 1) {
+                            throw new Error('A planilha precisa ter cabeçalho e ao menos uma linha de dados.');
+                        }
+
+                        this.currentIndex = 0;
+                        this.isActive = false;
+                        this.errorCount = 0;
+                        this.checkedCells.clear();
+                        this.viewMode = 'column';
+
+                        this.buildSequence();
+                        this.renderMap();
+                        this.enableControls();
+                        this.updateDisplay();
+                        this.updateStats();
+                        this.clearLogs();
+                        this.addLog('✅ Mapa carregado! ' + this.sequence.length + ' parcelas', 'log-success');
+                        this.saveState();
+                    } catch (error) {
+                        alert('Erro ao ler arquivo: ' + error.message);
+                        this.addLog('❌ Erro: ' + error.message, 'log-error');
+                    }
+                };
+
+                reader.readAsArrayBuffer(file);
+            }
+
+            buildSequence() {
+                this.sequence = [];
+                this.sequenceByCell.clear();
+                this.sequenceByBarcode.clear();
+
+                const dataRows = this.mapData.slice(1);
+                this.totalRows = dataRows.length;
+                this.totalCols = this.mapData[0] ? this.mapData[0].length - 1 : 0;
+
+                for (let col = 1; col <= this.totalCols; col++) {
+                    for (let row = dataRows.length - 1; row >= 0; row--) {
+                        const value = dataRows[row][col];
+                        if (this.isConferableValue(value)) {
+                            const mapRow = row + 1;
+                            const lineNumber = this.rowLabel(mapRow);
+                            const columnName = this.columnLabel(col);
+                            const item = {
+                                barcode: value.toString().trim(),
+                                row: mapRow,
+                                col: col,
+                                line: lineNumber,
+                                sourceRow: row + 2,
+                                location: `Linha ${lineNumber}, Coluna ${columnName}`
+                            };
+                            item.index = this.sequence.length;
+                            this.sequence.push(item);
+                            this.sequenceByCell.set(this.cellId(item.row, item.col), item.index);
+                            if (!this.sequenceByBarcode.has(item.barcode)) {
+                                this.sequenceByBarcode.set(item.barcode, item.index);
+                            }
+                        }
+                    }
+                }
+
+                this.addLog(`📊 Ordem: ${this.totalCols} colunas × ${this.totalRows} linhas`, 'log-info');
+                this.addLog(`🔍 Primeiro: ${this.sequence[0]?.barcode || '-'} | Último: ${this.sequence[this.sequence.length - 1]?.barcode || '-'}`, 'log-info');
+            }
+
+            renderMap() {
+                if (!this.mapData) return;
+
+                this.mapContainer.classList.toggle('column-mode', this.viewMode === 'column');
+                document.getElementById('btnCurrentColumn').classList.toggle('active-btn', this.viewMode === 'column');
+                document.getElementById('btnFullGrid').classList.toggle('active-btn', this.viewMode === 'full');
+
+                if (this.viewMode === 'column') {
+                    this.renderCurrentColumn();
+                } else {
+                    this.renderFullGrid();
+                }
+
+                this.mapSection.classList.remove('hidden');
+                this.highlightCell();
+            }
+
+            renderCurrentColumn() {
+                const current = this.sequence[this.currentIndex] || this.sequence[this.sequence.length - 1];
+                const currentCol = current ? current.col : 1;
+                let html = `<div class="column-title"><span>Coluna ${this.escapeHtml(this.columnLabel(currentCol))}</span><span>${this.currentIndex + 1} de ${this.sequence.length}</span></div>`;
+                html += `<table><thead><tr><th>${this.escapeHtml(this.rowHeaderLabel())}</th><th>Parcela</th><th>Status</th></tr></thead><tbody>`;
+
+                for (let row = 1; row < this.mapData.length; row++) {
+                    const value = this.mapData[row][currentCol] || '';
+                    const seqIndex = this.sequenceByCell.get(this.cellId(row, currentCol));
+                    html += '<tr>';
+                    html += `<td class="row-label" title="Linha ${this.escapeHtml(this.rowLabel(row))} do Excel">${this.escapeHtml(this.rowLabel(row))}</td>`;
+                    html += this.renderCell(row, currentCol, value, seqIndex);
+                    html += `<td>${this.statusForCell(row, currentCol, seqIndex)}</td>`;
+                    html += '</tr>';
+                }
+
+                html += '</tbody></table>';
+                this.mapContainer.innerHTML = html;
+            }
+
+            renderFullGrid() {
+                let html = `<table><thead><tr><th>${this.escapeHtml(this.rowHeaderLabel())}</th>`;
+
+                if (this.mapData[0]) {
+                    for (let i = 1; i < this.mapData[0].length; i++) {
+                        html += `<th>${this.escapeHtml(this.columnLabel(i))}</th>`;
+                    }
+                }
+                html += '</tr></thead><tbody>';
+
+                for (let row = 1; row < this.mapData.length; row++) {
+                    html += '<tr>';
+                    html += `<td class="row-label" title="Linha ${this.escapeHtml(this.rowLabel(row))} do Excel">${this.escapeHtml(this.rowLabel(row))}</td>`;
+
+                    for (let col = 1; col < this.mapData[row].length; col++) {
+                        const value = this.mapData[row][col] || '';
+                        const seqIndex = this.sequenceByCell.get(this.cellId(row, col));
+                        html += this.renderCell(row, col, value, seqIndex);
+                    }
+                    html += '</tr>';
+                }
+
+                html += '</tbody></table>';
+                this.mapContainer.innerHTML = html;
+            }
+
+            renderCell(row, col, value, seqIndex) {
+                const id = this.cellId(row, col);
+                const classes = [];
+
+                if (this.isFillerValue(value)) classes.push('filler');
+                if (this.checkedCells.has(id)) classes.push('checked');
+                if (seqIndex === this.currentIndex && this.sequence.length) classes.push('current');
+                if (seqIndex !== undefined && seqIndex < this.currentIndex && !this.checkedCells.has(id)) classes.push('pending-before');
+
+                const data = seqIndex !== undefined ? ` data-sequence-index="${seqIndex}" title="Clique para começar nesta parcela"` : '';
+                return `<td id="${id}" class="${classes.join(' ')}"${data}>${this.escapeHtml(value)}</td>`;
+            }
+
+            statusForCell(row, col, seqIndex) {
+                const id = this.cellId(row, col);
+                if (!this.mapData[row][col]) return '-';
+                if (this.isFillerValue(this.mapData[row][col])) return 'Filler';
+                if (this.checkedCells.has(id)) return 'Conferida';
+                if (seqIndex === this.currentIndex) return 'Atual';
+                if (seqIndex !== undefined && seqIndex < this.currentIndex) return 'Anterior';
+                return 'Pendente';
+            }
+
+            setViewMode(mode) {
+                this.viewMode = mode;
+                this.renderMap();
+                this.saveState();
+                this.addLog(mode === 'column' ? '🔎 Mostrando apenas a coluna atual' : '🗺️ Mostrando grid inteiro', 'log-info');
+            }
+
+            resetMap() {
+                if (!confirm('Tem certeza que deseja carregar um novo mapa? Isso resetará a conferência atual.')) return;
+
+                this.mapData = null;
+                this.sequence = [];
+                this.sequenceByCell.clear();
+                this.sequenceByBarcode.clear();
+                this.isActive = false;
+                this.currentIndex = 0;
+                this.errorCount = 0;
+                this.checkedCells.clear();
+                this.viewMode = 'column';
+
+                this.mapSection.classList.add('hidden');
+                this.mapContainer.innerHTML = '';
+                this.fileInput.value = '';
+                this.startParcelInput.value = '';
+
+                this.currentPackage.textContent = '----';
+                this.currentLocation.textContent = '';
+                this.directionArrow.textContent = '';
+                this.progressFill.style.width = '0%';
+                this.progressText.textContent = '0 / 0';
+                this.statusLabel.textContent = 'AGUARDANDO MAPA';
+                this.conferenceStatus.style.background = '#263746';
+                this.conferenceStatus.classList.remove('error', 'success');
+                this.barcodeInput.classList.remove('error');
+
+                this.barcodeInput.value = '';
+                this.barcodeInput.disabled = true;
+                this.barcodeInput.placeholder = 'Faça upload do mapa primeiro';
+
+                document.getElementById('btnStart').disabled = true;
+                document.getElementById('btnPause').disabled = true;
+                document.getElementById('btnSkip').disabled = true;
+
+                localStorage.removeItem(this.storageKey);
+                this.updateStats();
+                this.clearLogs();
+                this.addLog('🔄 Mapa removido. Pronto para novo upload.', 'log-info');
+            }
+
+            enableControls() {
+                document.getElementById('btnStart').disabled = this.sequence.length === 0;
+                document.getElementById('btnPause').disabled = !this.isActive;
+                document.getElementById('btnSkip').disabled = this.sequence.length === 0;
+                this.barcodeInput.disabled = false;
+                this.barcodeInput.placeholder = 'Mapa carregado. Clique em Iniciar';
+            }
+
+            start() {
+                if (!this.sequence.length) return;
+
+                this.isActive = true;
+                this.errorModal.classList.remove('active');
+
+                this.updateDisplay();
+                this.updateStats();
+                this.renderMap();
+
+                this.barcodeInput.disabled = false;
+                this.barcodeInput.focus();
+
+                this.statusLabel.textContent = 'CONFERINDO';
+                this.conferenceStatus.style.background = '#263746';
+                this.conferenceStatus.classList.remove('error', 'success');
+                document.getElementById('btnPause').disabled = false;
+                document.getElementById('btnStart').textContent = '▶ Continuar';
+
+                this.addLog('🚀 Conferência iniciada/retomada!', 'log-info');
+                this.saveState();
+            }
+
+            pause() {
+                if (!this.sequence.length) return;
+
+                this.isActive = false;
+                this.statusLabel.textContent = 'PAUSADO';
+                this.barcodeInput.disabled = true;
+                this.barcodeInput.placeholder = 'Conferência pausada. Clique em Continuar';
+                document.getElementById('btnPause').disabled = true;
+                document.getElementById('btnStart').disabled = false;
+                document.getElementById('btnStart').textContent = '▶ Continuar';
+                this.addLog('⏸ Conferência pausada. Progresso salvo.', 'log-info');
+                this.saveState();
+            }
+
+            processBarcode(scanned) {
+                if (!this.isActive || this.currentIndex >= this.sequence.length) return;
+                if (!scanned) return;
+
+                const expected = this.sequence[this.currentIndex];
+
+                if (scanned === expected.barcode) {
+                    this.handleCorrect(expected);
+                } else {
+                    this.handleError(scanned, expected);
+                }
+            }
+
+            handleCorrect(item) {
+                this.playBeep(880, 0.1);
+
+                const id = this.cellId(item.row, item.col);
+                this.checkedCells.add(id);
+
+                this.addLog(`✅ ${item.barcode} - ${item.location}`, 'log-success');
+                this.currentIndex++;
+
+                if (this.currentIndex >= this.sequence.length) {
+                    this.complete();
+                } else {
+                    this.updateDisplay();
+                    this.renderMap();
+                }
+
+                this.updateStats();
+                this.saveState();
+
+                this.conferenceStatus.style.background = '#229954';
+                setTimeout(() => {
+                    if (this.isActive) this.conferenceStatus.style.background = '#263746';
+                }, 300);
+            }
+
+            handleError(scanned, expected) {
+                this.errorCount++;
+
+                this.playBeep(200, 0.8);
+                setTimeout(() => this.playBeep(150, 0.8), 200);
+                setTimeout(() => this.playBeep(100, 1.0), 400);
+
+                this.flashOverlay.classList.remove('hidden');
+                setTimeout(() => this.flashOverlay.classList.add('hidden'), 500);
+
+                document.getElementById('errorLocation').textContent = `📍 ${expected.location}`;
+                document.getElementById('errorExpected').textContent = expected.barcode;
+                document.getElementById('errorScanned').textContent = scanned || '(vazio)';
+                this.errorModal.classList.add('active');
+
+                const id = this.cellId(expected.row, expected.col);
+                const cell = document.getElementById(id);
+                if (cell) {
+                    cell.classList.add('error-flash');
+                    setTimeout(() => cell.classList.remove('error-flash'), 2000);
+                }
+
+                this.barcodeInput.classList.add('error');
+                this.conferenceStatus.classList.add('error');
+
+                this.addLog(`❌ ERRO! Lido: ${scanned || '(vazio)'} | Esperado: ${expected.barcode} (${expected.location})`, 'log-error');
+
+                setTimeout(() => {
+                    this.barcodeInput.classList.remove('error');
+                    this.conferenceStatus.classList.remove('error');
+                }, 3000);
+
+                this.updateStats();
+                this.saveState();
+            }
+
+            updateDisplay() {
+                if (!this.sequence.length) return;
+
+                if (this.currentIndex >= this.sequence.length) {
+                    this.complete();
+                    return;
+                }
+
+                const curr = this.sequence[this.currentIndex];
+                this.currentPackage.textContent = curr.barcode;
+                this.currentLocation.textContent = `📍 ${curr.location}`;
+                this.startParcelInput.value = curr.barcode;
+
+                if (this.currentIndex > 0) {
+                    const prev = this.sequence[this.currentIndex - 1];
+                    this.directionArrow.textContent = curr.col !== prev.col ? `⬆️ Nova coluna: ${curr.col}` : '⬆️ Subindo na coluna';
+                } else {
+                    this.directionArrow.textContent = '⬆️ Início da coluna';
+                }
+
+                const progress = (this.currentIndex / this.sequence.length) * 100;
+                this.progressFill.style.width = progress + '%';
+                this.progressText.textContent = `${this.currentIndex} / ${this.sequence.length}`;
+                this.barcodeInput.placeholder = `Escaneie: ${curr.barcode}`;
+            }
+
+            highlightCell() {
+                if (this.currentIndex < this.sequence.length) {
+                    const curr = this.sequence[this.currentIndex];
+                    document.querySelectorAll('.current').forEach(el => el.classList.remove('current'));
+                    const cell = document.getElementById(this.cellId(curr.row, curr.col));
+                    if (cell) {
+                        cell.classList.add('current');
+                        cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+                    }
+                }
+            }
+
+            skip() {
+                if (!this.sequence.length || this.currentIndex >= this.sequence.length) return;
+
+                const skipped = this.sequence[this.currentIndex];
+                const id = this.cellId(skipped.row, skipped.col);
+                this.checkedCells.add(id);
+
+                this.addLog(`⏭️ Pulado: ${skipped.barcode} (${skipped.location})`, 'log-info');
+                this.currentIndex++;
+
+                if (this.currentIndex >= this.sequence.length) {
+                    this.complete();
+                } else {
+                    this.updateDisplay();
+                    this.renderMap();
+                }
+
+                this.updateStats();
+                this.saveState();
+            }
+
+            complete() {
+                this.isActive = false;
+
+                this.currentPackage.textContent = '✓✓✓';
+                this.currentLocation.textContent = '🎉 Conferência Finalizada!';
+                this.directionArrow.textContent = '';
+                this.progressFill.style.width = '100%';
+                this.progressText.textContent = `${this.sequence.length} / ${this.sequence.length}`;
+
+                this.statusLabel.textContent = 'CONCLUÍDO';
+                this.conferenceStatus.style.background = '#229954';
+                this.conferenceStatus.classList.add('success');
+
+                this.barcodeInput.disabled = true;
+                this.barcodeInput.placeholder = '✅ Conferência concluída!';
+
+                document.getElementById('btnStart').disabled = true;
+                document.getElementById('btnPause').disabled = true;
+                document.getElementById('btnSkip').disabled = true;
+
+                this.addLog('🎉 CONFERÊNCIA CONCLUÍDA!', 'log-success');
+
+                this.playBeep(523, 0.2);
+                setTimeout(() => this.playBeep(659, 0.2), 200);
+                setTimeout(() => this.playBeep(784, 0.3), 400);
+
+                setTimeout(() => {
+                    alert(`✅ CONFERÊNCIA FINALIZADA!\n\nParcelas: ${this.sequence.length}\nErros: ${this.errorCount}\n\nTodas as parcelas foram verificadas!`);
+                }, 500);
+
+                this.updateStats();
+                this.saveState();
+            }
+
+            selectSequenceIndex(index, fromClick = false) {
+                if (!Number.isInteger(index) || index < 0 || index >= this.sequence.length) return;
+
+                if (this.isActive && fromClick && !confirm('Mudar a parcela atual durante a conferência? O progresso já conferido será mantido.')) return;
+
+                this.currentIndex = index;
+                this.isActive = false;
+                this.statusLabel.textContent = 'PRONTO PARA RETOMAR';
+                this.conferenceStatus.style.background = '#263746';
+                this.conferenceStatus.classList.remove('error', 'success');
+                this.barcodeInput.disabled = true;
+                this.barcodeInput.value = '';
+                this.barcodeInput.placeholder = 'Parcela selecionada. Clique em Continuar';
+
+                document.getElementById('btnStart').disabled = false;
+                document.getElementById('btnStart').textContent = '▶ Continuar';
+                document.getElementById('btnPause').disabled = true;
+                document.getElementById('btnSkip').disabled = false;
+
+                this.updateDisplay();
+                this.updateStats();
+                this.renderMap();
+                this.addLog(`📍 Parcela selecionada: ${this.sequence[index].barcode} (${this.sequence[index].location})`, 'log-info');
+                this.saveState();
+            }
+
+            goToParcel(barcode) {
+                if (!barcode) return;
+                const index = this.sequenceByBarcode.get(barcode);
+                if (index === undefined) {
+                    alert('Parcela não encontrada no mapa: ' + barcode);
+                    this.addLog('⚠️ Parcela não encontrada: ' + barcode, 'log-error');
+                    return;
+                }
+                this.selectSequenceIndex(index, false);
+            }
+
+            updateStats() {
+                document.getElementById('totalPackages').textContent = this.sequence.length;
+                document.getElementById('checkedPackages').textContent = this.checkedCells.size;
+                document.getElementById('errorCount').textContent = this.errorCount;
+                document.getElementById('remainingPackages').textContent = Math.max(this.sequence.length - this.currentIndex, 0);
+            }
+
+            addLog(msg, cls = '') {
+                const time = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = 'log-entry ' + cls;
+                entry.textContent = `[${time}] ${msg}`;
+                this.logPanel.prepend(entry);
+
+                while (this.logPanel.children.length > 50) {
+                    this.logPanel.removeChild(this.logPanel.lastChild);
+                }
+            }
+
+            clearLogs() {
+                this.logPanel.innerHTML = '';
+            }
+
+            reset() {
+                if (this.isActive && !confirm('Tem certeza que deseja resetar a conferência?')) return;
+
+                this.isActive = false;
+                this.currentIndex = 0;
+                this.errorCount = 0;
+                this.checkedCells.clear();
+
+                this.currentPackage.textContent = '----';
+                this.currentLocation.textContent = '';
+                this.directionArrow.textContent = '';
+                this.progressFill.style.width = '0%';
+                this.progressText.textContent = this.sequence.length ? `0 / ${this.sequence.length}` : '0 / 0';
+
+                this.statusLabel.textContent = this.sequence.length ? 'AGUARDANDO' : 'AGUARDANDO MAPA';
+                this.conferenceStatus.style.background = '#263746';
+                this.conferenceStatus.classList.remove('error', 'success');
+                this.barcodeInput.classList.remove('error');
+
+                this.barcodeInput.value = '';
+                this.barcodeInput.disabled = !this.sequence.length;
+                this.barcodeInput.placeholder = this.sequence.length ? 'Mapa carregado. Clique em Iniciar' : 'Faça upload do mapa primeiro';
+
+                document.getElementById('btnStart').disabled = !this.sequence.length;
+                document.getElementById('btnStart').textContent = '▶ Iniciar';
+                document.getElementById('btnPause').disabled = true;
+                document.getElementById('btnSkip').disabled = !this.sequence.length;
+
+                this.updateStats();
+                this.clearLogs();
+
+                if (this.mapData) {
+                    this.updateDisplay();
+                    this.renderMap();
+                }
+
+                this.addLog('🔄 Conferência resetada', 'log-info');
+                this.saveState();
+            }
+
+            saveState() {
+                if (!this.mapData) return;
+                const state = {
+                    mapData: this.mapData,
+                    currentIndex: this.currentIndex,
+                    errorCount: this.errorCount,
+                    checkedCells: Array.from(this.checkedCells),
+                    viewMode: this.viewMode,
+                    savedAt: new Date().toISOString()
+                };
+                localStorage.setItem(this.storageKey, JSON.stringify(state));
+            }
+
+            restoreState() {
+                try {
+                    const raw = localStorage.getItem(this.storageKey);
+                    if (!raw) return;
+                    const state = JSON.parse(raw);
+                    if (!state.mapData || !Array.isArray(state.mapData)) return;
+
+                    this.mapData = state.mapData;
+                    this.currentIndex = Number(state.currentIndex) || 0;
+                    this.errorCount = Number(state.errorCount) || 0;
+                    this.checkedCells = new Set(state.checkedCells || []);
+                    this.viewMode = state.viewMode === 'full' ? 'full' : 'column';
+                    this.isActive = false;
+
+                    this.buildSequence();
+                    if (this.currentIndex >= this.sequence.length) this.currentIndex = Math.max(this.sequence.length - 1, 0);
+                    this.enableControls();
+                    this.updateDisplay();
+                    this.updateStats();
+                    this.renderMap();
+                    this.statusLabel.textContent = 'PRONTO PARA RETOMAR';
+                    this.barcodeInput.disabled = true;
+                    this.barcodeInput.placeholder = 'Progresso restaurado. Clique em Continuar';
+                    document.getElementById('btnStart').textContent = '▶ Continuar';
+                    document.getElementById('btnPause').disabled = true;
+                    this.addLog('💾 Progresso restaurado automaticamente.', 'log-success');
+                } catch (error) {
+                    localStorage.removeItem(this.storageKey);
+                    this.addLog('⚠️ Não foi possível restaurar o progresso salvo.', 'log-error');
+                }
+            }
+
+            cellId(row, col) {
+                return `cell-${row}-${col}`;
+            }
+
+            rowHeaderLabel() {
+                return this.mapData?.[0]?.[0] || 'ROW/COLUMN';
+            }
+
+            rowLabel(row) {
+                const value = this.mapData?.[row]?.[0];
+                return value !== undefined && value !== null && value.toString().trim() !== ''
+                    ? value.toString().trim()
+                    : String(this.totalRows - row + 1);
+            }
+
+            columnLabel(col) {
+                const value = this.mapData?.[0]?.[col];
+                return value !== undefined && value !== null && value.toString().trim() !== ''
+                    ? value.toString().trim()
+                    : String(col);
+            }
+
+            isConferableValue(value) {
+                return value !== undefined &&
+                    value !== null &&
+                    value.toString().trim() !== '' &&
+                    !this.isFillerValue(value);
+            }
+
+            isFillerValue(value) {
+                return value !== undefined &&
+                    value !== null &&
+                    value.toString().trim().toUpperCase() === 'FILLER';
+            }
+
+            escapeHtml(value) {
+                return value.toString()
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#039;');
+            }
+
+            playBeep(freq, duration) {
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.frequency.value = freq;
+                    osc.type = 'sawtooth';
+                    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + duration);
+                } catch (e) {}
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new FieldConference();
+        });
+    </script>
+</body>
+</html>
