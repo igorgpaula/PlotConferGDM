@@ -549,6 +549,18 @@
             font-size: 0.82rem;
             line-height: 1.4;
         }
+
+        .file-info {
+            background: #f7f9fb;
+            border: 1px solid #dfe7ee;
+            border-radius: 8px;
+            color: #34495e;
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            padding: 0.75rem 1rem;
+            overflow-wrap: anywhere;
+        }
     </style>
 </head>
 <body>
@@ -598,6 +610,7 @@
                 <small>ou arraste o arquivo (.xlsx, .xls)</small>
                 <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
             </div>
+            <div id="fileInfo" class="file-info hidden">Arquivo carregado: <span id="fileNameText"></span></div>
 
             <div id="mapSection" class="hidden">
                 <div class="map-controls">
@@ -692,6 +705,7 @@
                 this.totalRows = 0;
                 this.totalCols = 0;
                 this.viewMode = 'column';
+                this.fileName = '';
 
                 this.init();
             }
@@ -713,6 +727,8 @@
                 this.flashOverlay = document.getElementById('flashOverlay');
                 this.errorModal = document.getElementById('errorModal');
                 this.startParcelInput = document.getElementById('startParcelInput');
+                this.fileInfo = document.getElementById('fileInfo');
+                this.fileNameText = document.getElementById('fileNameText');
 
                 this.uploadArea.addEventListener('click', () => this.fileInput.click());
                 this.fileInput.addEventListener('change', (e) => this.handleFile(e));
@@ -806,8 +822,10 @@
                         this.errorCount = 0;
                         this.checkedCells.clear();
                         this.viewMode = 'column';
+                        this.fileName = file.name;
 
                         this.buildSequence();
+                        this.updateFileInfo();
                         this.renderMap();
                         this.enableControls();
                         this.updateDisplay();
@@ -967,11 +985,13 @@
                 this.errorCount = 0;
                 this.checkedCells.clear();
                 this.viewMode = 'column';
+                this.fileName = '';
 
                 this.mapSection.classList.add('hidden');
                 this.mapContainer.innerHTML = '';
                 this.fileInput.value = '';
                 this.startParcelInput.value = '';
+                this.updateFileInfo();
 
                 this.currentPackage.textContent = '----';
                 this.currentLocation.textContent = '';
@@ -1057,6 +1077,7 @@
 
             handleCorrect(item) {
                 this.playBeep(880, 0.1);
+                const completedColumn = this.willCompleteColumn(item);
 
                 const id = this.cellId(item.row, item.col);
                 this.checkedCells.add(id);
@@ -1067,6 +1088,10 @@
                 if (this.currentIndex >= this.sequence.length) {
                     this.complete();
                 } else {
+                    if (completedColumn) {
+                        this.playColumnCompleteSound();
+                        this.addLog(`🔔 Coluna ${this.columnLabel(item.col)} concluída`, 'log-success');
+                    }
                     this.updateDisplay();
                     this.renderMap();
                 }
@@ -1158,6 +1183,7 @@
                 if (!this.sequence.length || this.currentIndex >= this.sequence.length) return;
 
                 const skipped = this.sequence[this.currentIndex];
+                const completedColumn = this.willCompleteColumn(skipped);
                 const id = this.cellId(skipped.row, skipped.col);
                 this.checkedCells.add(id);
 
@@ -1167,6 +1193,10 @@
                 if (this.currentIndex >= this.sequence.length) {
                     this.complete();
                 } else {
+                    if (completedColumn) {
+                        this.playColumnCompleteSound();
+                        this.addLog(`🔔 Coluna ${this.columnLabel(skipped.col)} concluída`, 'log-success');
+                    }
                     this.updateDisplay();
                     this.renderMap();
                 }
@@ -1246,6 +1276,18 @@
                 this.selectSequenceIndex(index, false);
             }
 
+            updateFileInfo() {
+                if (!this.fileInfo || !this.fileNameText) return;
+
+                if (this.fileName) {
+                    this.fileNameText.textContent = this.fileName;
+                    this.fileInfo.classList.remove('hidden');
+                } else {
+                    this.fileNameText.textContent = '';
+                    this.fileInfo.classList.add('hidden');
+                }
+            }
+
             updateStats() {
                 document.getElementById('totalPackages').textContent = this.sequence.length;
                 document.getElementById('checkedPackages').textContent = this.checkedCells.size;
@@ -1312,6 +1354,7 @@
             saveState() {
                 if (!this.mapData) return;
                 const state = {
+                    fileName: this.fileName,
                     mapData: this.mapData,
                     currentIndex: this.currentIndex,
                     errorCount: this.errorCount,
@@ -1330,6 +1373,7 @@
                     if (!state.mapData || !Array.isArray(state.mapData)) return;
 
                     this.mapData = state.mapData;
+                    this.fileName = state.fileName || 'Mapa restaurado do navegador';
                     this.currentIndex = Number(state.currentIndex) || 0;
                     this.errorCount = Number(state.errorCount) || 0;
                     this.checkedCells = new Set(state.checkedCells || []);
@@ -1337,6 +1381,7 @@
                     this.isActive = false;
 
                     this.buildSequence();
+                    this.updateFileInfo();
                     if (this.currentIndex >= this.sequence.length) this.currentIndex = Math.max(this.sequence.length - 1, 0);
                     this.enableControls();
                     this.updateDisplay();
@@ -1389,6 +1434,17 @@
                     value.toString().trim().toUpperCase() === 'FILLER';
             }
 
+            willCompleteColumn(item) {
+                const next = this.sequence[this.currentIndex + 1];
+                return next && next.col !== item.col;
+            }
+
+            playColumnCompleteSound() {
+                this.playBeep(1046, 0.12, 'triangle', 0.35);
+                setTimeout(() => this.playBeep(1318, 0.12, 'triangle', 0.35), 130);
+                setTimeout(() => this.playBeep(1568, 0.18, 'triangle', 0.35), 260);
+            }
+
             escapeHtml(value) {
                 return value.toString()
                     .replaceAll('&', '&amp;')
@@ -1398,7 +1454,7 @@
                     .replaceAll("'", '&#039;');
             }
 
-            playBeep(freq, duration) {
+            playBeep(freq, duration, type = 'sawtooth', volume = 0.5) {
                 try {
                     const ctx = new (window.AudioContext || window.webkitAudioContext)();
                     const osc = ctx.createOscillator();
@@ -1406,8 +1462,8 @@
                     osc.connect(gain);
                     gain.connect(ctx.destination);
                     osc.frequency.value = freq;
-                    osc.type = 'sawtooth';
-                    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+                    osc.type = type;
+                    gain.gain.setValueAtTime(volume, ctx.currentTime);
                     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
                     osc.start(ctx.currentTime);
                     osc.stop(ctx.currentTime + duration);
